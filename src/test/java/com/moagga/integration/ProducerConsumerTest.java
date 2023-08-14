@@ -2,10 +2,11 @@ package com.moagga.integration;
 
 import com.moagga.consumer.ConsumerCallback;
 import com.moagga.consumer.OrderConsumer;
-import com.moagga.producer.OrderProducer;
+import com.moagga.producer.Producer;
 import com.moagga.proto.order.Item;
 import com.moagga.proto.order.Order;
-import com.moagga.proto.order.PaymentMethod;
+import com.moagga.proto.user.Address;
+import com.moagga.proto.user.User;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,12 +24,14 @@ class ProducerConsumerTest implements ConsumerCallback {
 
   private KafkaContainer kafka;
 
-  private OrderProducer producer;
+  private Producer producer;
   private OrderConsumer consumer;
 
   private Order orderProduced;
   private Order orderConsumed;
 
+  private User userProduced;
+  private User userConsumed;
   private ExecutorService executorService;
 
   @BeforeEach
@@ -37,7 +40,7 @@ class ProducerConsumerTest implements ConsumerCallback {
     kafka.start();
     String host = kafka.getBootstrapServers();
 
-    producer = new OrderProducer(host);
+    producer = new Producer(host);
     consumer = new OrderConsumer(host, this);
     consumer.start();
 
@@ -48,28 +51,31 @@ class ProducerConsumerTest implements ConsumerCallback {
     Random r = new Random();
     Order.Builder builder = Order.newBuilder()
         .setOrderId(r.nextLong())
-        .setStatus(RandomStringUtils.randomAscii(5))
-        .setPaymentStatus(RandomStringUtils.randomAscii(5));
+        .setStatus(RandomStringUtils.randomAscii(5));
 
     for (int i = 0; i < 3; i++) {
-      Item item = Item.newBuilder()
+      Item.Builder itemBuilder = Item.newBuilder()
           .setItemId(RandomStringUtils.randomAscii(10))
           .setPrice(r.nextDouble())
-          .setBrand(RandomStringUtils.randomAscii(5))
-          .setCategory(RandomStringUtils.randomAscii(9))
-          .build();
-      builder.addItems(item);
+          .setBrand(RandomStringUtils.randomAscii(5));
+
+      for (int j = 0; j < 2; j++) {
+        itemBuilder.addCategories(RandomStringUtils.randomAscii(5));
+      }
+
+      builder.addItems(itemBuilder.build());
     }
 
-    for (int i = 0; i < 2; i++) {
-      PaymentMethod paymentMethod = PaymentMethod.newBuilder()
-          .setMode(RandomStringUtils.randomAscii(3))
-          .setAmount(r.nextDouble())
-          .setBankCode(RandomStringUtils.randomAscii(3))
-          .build();
+    Address address = Address.newBuilder()
+        .setCity("DEL")
+        .setPinCode(11001)
+        .build();
 
-      builder.addPaymentMethods(paymentMethod);
-    }
+    userProduced = User.newBuilder()
+        .setUserId(12L)
+        .setName("Joe")
+        .addAddresses(address)
+        .build();
 
     orderProduced = builder.build();
   }
@@ -83,16 +89,21 @@ class ProducerConsumerTest implements ConsumerCallback {
 
   @Test
   void teste2e() throws InterruptedException {
-    producer.produceMessage(orderProduced);
+    producer.produceOrder(orderProduced);
+    producer.produceUser(userProduced);
     Thread.sleep(10000L);
     Assertions.assertEquals(orderConsumed, orderProduced);
+    Assertions.assertEquals(userConsumed, userProduced);
   }
 
   @Override
-  public void onMessage(ConsumerRecords<String, Order> records) {
-    for (ConsumerRecord<String, Order> record : records) {
-      orderConsumed = record.value();
-      break;
+  public void onMessage(ConsumerRecords<String, ?> records) {
+    for (ConsumerRecord<String, ?> record : records) {
+      if (record.topic().equals("orders")) {
+        orderConsumed = (Order) record.value();
+      } else if (record.topic().equals("users")) {
+        userConsumed = (User) record.value();
+      }
     }
   }
 

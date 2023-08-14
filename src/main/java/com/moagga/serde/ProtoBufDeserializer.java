@@ -1,22 +1,41 @@
 package com.moagga.serde;
 
 import com.google.protobuf.Message;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.kafka.common.serialization.Deserializer;
 
+/**
+ * Generic Kafka deserializer for protocol buffer.
+ * This class uses a property file to load topic & message Java type which helps to reuse this deserializer
+ * across multiple topics. The concept could be extended to load this mapping from other sources
+ * like DB.
+ *
+ */
 public class ProtoBufDeserializer implements Deserializer<Message> {
 
-  public static final String TARGET_CLASSES = "target.classes";
-
-  private Map<String, Class<? extends Message>> targetClasses;
+  private Map<String, Class<? extends Message>> targetClasses = new HashMap<>();
 
   @Override
   public void configure(Map<String, ?> configs, boolean isKey) {
-    if (!isKey) {
-      targetClasses = (Map<String, Class<? extends Message>>) configs.get(TARGET_CLASSES);
-      System.out.println(targetClasses);
+    InputStream in = ProtoBufDeserializer.class.getClassLoader().getResourceAsStream("deserializers.properties");
+    Properties props = new Properties();
+    try {
+      props.load(in);
+      for (Object prop : props.keySet()) {
+        String className = props.getProperty(prop.toString());
+        Class<? extends Message> clazz = (Class<? extends Message>) Class.forName(className);
+        targetClasses.put(prop.toString(), clazz);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException(e);
     }
   }
 
