@@ -1,0 +1,27 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.moagga.proto.order";
+
+package com.moagga.proto.order;
+
+message Order {
+  int64 orderId = 1;
+  string status = 2;
+  string paymentStatus = 3;
+  repeated Item items = 4;
+  repeated PaymentMethod paymentMethods = 5;
+}
+
+message PaymentMethod {
+  string mode = 1;
+  double amount = 2;
+  optional string bankCode = 3;
+  optional string cardNumber = 4;
+}
+
+message Item {
+  string itemId = 1;
+  double price = 2;
+  string brand = 3;
+  string category = 4;
+}
