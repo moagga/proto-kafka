@@ -28,6 +28,6 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Echo variables
-      run: echo "Hello ${{ env.GITHUB_ACTOR }}"
+      run: echo "Hello ${{ github.actor }}"
     - name: Build with Maven
       run: mvn -B package --file pom.xml
